@@ -11,7 +11,6 @@
 | 항목 | 내용 |
 |------|------|
 | 팀 이름 / 조 |webos_devos/1조 |
-
 | 팀원 (역할) | PM:손명진  / BE: 이현서 / FE: 이선우 / TE: 손명진 |
 | GitHub 저장소 URL | https://github.com/sohnmj/webos_devops |
 | Render 배포 URL | |

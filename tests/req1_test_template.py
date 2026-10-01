@@ -185,13 +185,46 @@ def run_tests():
 
     # =========================================================================
     # ★ TODO 1 : TE 시나리오 #4 
+    r = filter_subscribers(subscribers, search="Premium")
+    passed = (len(r) > 0
+              and all(u["plan"] == "Premium" for u in r)
+              and {u["userId"] for u in r} == {"U001", "U004"})
+    check("TE-4", '검색창에 "Premium" 입력', "Premium 플랜 사용자만 표시 (U001, U004)",
+          f'{len(r)}명: {[u["userId"] for u in r]}', passed)
     # =========================================================================
     # =========================================================================
     # ★ TODO 2 : TE 시나리오 #... 
     # ...
     # ...
-
-
+    r = filter_subscribers(subscribers, status="Active")
+    passed = len(r) == 3 and all(u["status"] == "Active" for u in r)
+    check("TE-5", '상태 필터 "Active" 선택', "Active 사용자만 표시 (3명)",
+          f'{len(r)}명: {[u["userId"] for u in r]}', passed)
+    # =========================================================================
+    # ★ TODO 3 : TE 시나리오 #6 : 상태 필터 "Expired" → Jung Hyerin 만 표시
+    # =========================================================================
+    r = filter_subscribers(subscribers, status="Expired")
+    passed = len(r) == 1 and r[0]["name"] == "Jung Hyerin"
+    check("TE-6", '상태 필터 "Expired" 선택', "Jung Hyerin만 표시",
+          f'{len(r)}명: {[u["name"] for u in r]}', passed)
+    # =========================================================================
+    # ★ TODO 4 : TE 시나리오 #7 : 검색 + 필터 동시 적용
+    #   "Basic" 검색 + "Active" 필터 → Lee Jiyoon 만
+    #   (Jung Hyerin 도 Basic 이지만 Expired 라 제외되어야 함)
+    # =========================================================================
+    r = filter_subscribers(subscribers, search="Basic", status="Active")
+    passed = len(r) == 1 and r[0]["name"] == "Lee Jiyoon"
+    check("TE-7", '검색 "Basic" + 상태 필터 "Active" 동시 적용',
+          "두 조건 모두 만족하는 Lee Jiyoon만 표시",
+          f'{len(r)}명: {[u["name"] for u in r]}', passed)
+      # =========================================================================
+    # ★ TODO 5 : TE 시나리오 #8 : 검색어 삭제 시 전체 목록 복원
+    # =========================================================================
+    narrowed = filter_subscribers(subscribers, search="Kim")
+    restored = filter_subscribers(subscribers, search="")
+    passed = len(narrowed) < len(restored) == 5
+    check("TE-8", "검색어 입력 후 삭제", "전체 5명 목록 복원",
+          f"검색 중 {len(narrowed)}명 → 삭제 후 {len(restored)}명", passed)
 # =============================================================================
 # Markdown Report 생성 (수정할 필요 없음)
 # =============================================================================

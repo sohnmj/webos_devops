@@ -16,7 +16,7 @@ router = APIRouter()
 # =============================================================================
 @router.get("/subscribers")
 def get_subscribers():
-    # subscribers 리스트 전체를 반환
+
     return subscribers
 
 

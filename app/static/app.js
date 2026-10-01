@@ -11,19 +11,33 @@ let usageChart = null;
 // =============================================================================
 // [요구사항 #3] 상태 기반 Badge 스타일
 // =============================================================================
-// TODO [요구사항 #3]: 상태 값(value)에 따라 적절한 CSS 클래스를 반환하세요.
-//
 function badgeClass(value) {
     const v = (value || "").toLowerCase();
 
-    // 매핑 규칙:
-    // Active, Online, Normal   → "badge status-active"   (초록)
-    // Paused, Standby          → "badge status-paused"   (파랑)
-    // Expired, Error, Warning  → "badge status-expired"  (빨강)
-    // Offline                  → "badge status-offline"  (회색)
-    // On, Cleaning             → "badge status-on"       (노랑)
-    // Off                      → "badge status-off"      (연회색)
-    // 그 외                     → "badge"
+    if (["active", "online", "normal"].includes(v)) {
+        return "badge status-active";
+    }
+
+    if (["paused", "standby"].includes(v)) {
+        return "badge status-paused";
+    }
+
+    if (["expired", "error", "warning"].includes(v)) {
+        return "badge status-expired";
+    }
+
+    if (v === "offline") {
+        return "badge status-offline";
+    }
+
+    if (["on", "cleaning"].includes(v)) {
+        return "badge status-on";
+    }
+
+    if (v === "off") {
+        return "badge status-off";
+    }
+
     return "badge";
 }
 
@@ -33,31 +47,86 @@ function badgeClass(value) {
 // =============================================================================
 
 // TODO [요구사항 #1-A]: GET /api/subscribers 를 호출하여
-//   subscribers 변수에 저장하고 renderSubscribers()를 호출하세요.
-//
+// subscribers 변수에 저장하고 renderSubscribers()를 호출하세요.
 async function fetchSubscribers() {
-    // 1. GET /api/subscribers 호출
-    // 2. 응답을 subscribers 변수에 저장
-    // 3. renderSubscribers() 호출
+    try {
+        // 1. GET /api/subscribers 호출
+        const response = await fetch("/api/subscribers");
+
+        if (!response.ok) {
+            throw new Error(`HTTP 에러! 상태 코드: ${response.status}`);
+        }
+
+        // 2. 응답을 subscribers 변수에 저장
+        const data = await response.json();
+        subscribers = data;
+
+        // 3. renderSubscribers() 호출
+        renderSubscribers();
+
+    } catch (error) {
+        console.error("구독 사용자 목록을 불러오지 못했습니다:", error);
+    }
 }
 
+
 // TODO [요구사항 #1-B]: subscribers 배열을 테이블에 렌더링하세요.
-//
 function renderSubscribers() {
     const tbody = document.getElementById("subscriber-body");
-    const search = document.getElementById("subscriber-search").value.toLowerCase();
-    const statusFilter = document.getElementById("subscriber-status-filter").value;
-    
-    // 1. 검색어와 상태 필터 값 가져오기
-    // 2. subscribers 배열 필터링
-    //    - 검색: name, plan, status, userId에 대해 부분 문자열 매칭
-    //    - 필터: status가 선택된 값과 일치
-    // 3. <tbody>에 <tr> 렌더링
-    //    - 표시 컬럼: userId, name, plan, status, deviceCount
-    //    - 각 행 클릭 시 selectSubscriber(userId) 호출
-    //    - 선택된 행(selectedUserId)에 "selected" 클래스 추가
+    const search = document
+        .getElementById("subscriber-search")
+        .value
+        .toLowerCase();
 
-    // 여기에 구현하세요
+    const statusFilter =
+        document.getElementById("subscriber-status-filter").value;
+
+    // 검색 + 상태 필터
+    const filteredSubscribers = subscribers.filter(subscriber => {
+        const matchesSearch =
+            String(subscriber.name || "").toLowerCase().includes(search) ||
+            String(subscriber.plan || "").toLowerCase().includes(search) ||
+            String(subscriber.status || "").toLowerCase().includes(search) ||
+            String(subscriber.userId || "").toLowerCase().includes(search);
+
+        const matchesStatus =
+            statusFilter === "" ||
+            subscriber.status === statusFilter;
+
+        return matchesSearch && matchesStatus;
+    });
+
+    // 기존 테이블 초기화
+    tbody.innerHTML = "";
+
+    // 필터 결과 렌더링
+    filteredSubscribers.forEach(subscriber => {
+        const tr = document.createElement("tr");
+
+        // 현재 선택된 사용자 표시
+        if (subscriber.userId === selectedUserId) {
+            tr.classList.add("selected");
+        }
+
+        // 행 클릭 시 사용자 선택
+        tr.addEventListener("click", () => {
+            selectSubscriber(subscriber.userId);
+        });
+
+        tr.innerHTML = `
+            <td>${subscriber.userId}</td>
+            <td>${subscriber.name}</td>
+            <td>${subscriber.plan}</td>
+            <td>
+                <span class="${badgeClass(subscriber.status)}">
+                    ${subscriber.status}
+                </span>
+            </td>
+            <td>${subscriber.deviceCount}</td>
+        `;
+
+        tbody.appendChild(tr);
+    });
 }
 
 
@@ -66,69 +135,260 @@ function renderSubscribers() {
 // =============================================================================
 
 // TODO [요구사항 #2-A]: 사용자 클릭 시 해당 사용자의 가전 목록을 조회하세요.
-//
 async function selectSubscriber(userId) {
-    // 여기에 구현하세요
-    // 1. selectedUserId 업데이트, selectedDeviceId = null
-    // 2. renderSubscribers() 호출 (선택 상태 반영)
-    // 3. 이전 사용 현황 초기화:
-    //    - usage-empty 표시, usage-detail 숨기기
-    //    - usage-info 내용 비우기
-    // 4. GET /api/subscribers/{userId}/devices 호출
-    // 5. currentDevices에 저장
+    // 1. selectedUserId 업데이트, selectedDeviceId 초기화
+    selectedUserId = userId;
+    selectedDeviceId = null;
+
+    // 2. 사용자 테이블 선택 상태 반영
+    renderSubscribers();
+
+    // 3. 이전 사용 현황 초기화
+    const usageEmpty = document.getElementById("usage-empty");
+    const usageDetail = document.getElementById("usage-detail");
+    const usageInfo = document.getElementById("usage-info");
+
+    usageEmpty.style.display = "";
+    usageDetail.style.display = "none";
+    usageInfo.innerHTML = "";
+
+    // 기존 차트 제거
+    if (usageChart) {
+        usageChart.destroy();
+        usageChart = null;
+    }
+
+    try {
+        // 4. GET /api/subscribers/{userId}/devices 호출
+        const response =
+            await fetch(`/api/subscribers/${userId}/devices`);
+
+        if (!response.ok) {
+            throw new Error(`HTTP 에러! 상태 코드: ${response.status}`);
+        }
+
+        // 5. currentDevices 저장
+        const data = await response.json();
+        currentDevices = data;
+
+    } catch (error) {
+        console.error("가전 목록을 불러오지 못했습니다:", error);
+
+        currentDevices = [];
+    }
+
     // 6. renderDevices() 호출
+    renderDevices();
 }
 
+
 // TODO [요구사항 #2-B]: currentDevices 배열을 테이블에 렌더링하세요.
-//
 function renderDevices() {
     const emptyEl = document.getElementById("device-empty");
     const tableEl = document.getElementById("device-table");
     const tbody = document.getElementById("device-body");
-    const search = document.getElementById("device-search").value.toLowerCase();
-    const statusFilter = document.getElementById("device-status-filter").value;
 
-    // 여기에 구현하세요
-    // 1. 검색어, 상태 필터 값 가져오기
-    // 2. currentDevices 배열 필터링
-    //    - 검색: type, model, status, deviceId, location 부분 매칭
-    //    - 필터: status 일치
-    // 3. 가전이 없으면 → "No registered devices" 메시지 표시
-    //    필터 결과가 없으면 → "No devices matched" 메시지 표시
-    //    결과 있으면 → device-table 표시
-    // 4. <tbody>에 deviceId, type, model, location, status(badge) 렌더링
-    // 5. 각 행 클릭 시 selectDevice(deviceId) 호출
+    const search = document
+        .getElementById("device-search")
+        .value
+        .toLowerCase();
+
+    const statusFilter =
+        document.getElementById("device-status-filter").value;
+
+    // 검색 + 상태 필터
+    const filteredDevices = currentDevices.filter(device => {
+        const matchesSearch =
+            String(device.type || "").toLowerCase().includes(search) ||
+            String(device.model || "").toLowerCase().includes(search) ||
+            String(device.status || "").toLowerCase().includes(search) ||
+            String(device.deviceId || "").toLowerCase().includes(search) ||
+            String(device.location || "").toLowerCase().includes(search);
+
+        const matchesStatus =
+            statusFilter === "" ||
+            device.status === statusFilter;
+
+        return matchesSearch && matchesStatus;
+    });
+
+    tbody.innerHTML = "";
+
+    // 등록된 가전 자체가 없음
+    if (currentDevices.length === 0) {
+        emptyEl.textContent = "No registered devices";
+        emptyEl.style.display = "";
+        tableEl.style.display = "none";
+        return;
+    }
+
+    // 검색/필터 결과가 없음
+    if (filteredDevices.length === 0) {
+        emptyEl.textContent = "No devices matched";
+        emptyEl.style.display = "";
+        tableEl.style.display = "none";
+        return;
+    }
+
+    // 결과 있음
+    emptyEl.style.display = "none";
+    tableEl.style.display = "";
+
+    filteredDevices.forEach(device => {
+        const tr = document.createElement("tr");
+
+        // 현재 선택된 가전 표시
+        if (device.deviceId === selectedDeviceId) {
+            tr.classList.add("selected");
+        }
+
+        // 행 클릭 시 가전 선택
+        tr.addEventListener("click", () => {
+            selectDevice(device.deviceId);
+        });
+
+        tr.innerHTML = `
+            <td>${device.deviceId}</td>
+            <td>${device.type}</td>
+            <td>${device.model}</td>
+            <td>${device.location}</td>
+            <td>
+                <span class="${badgeClass(device.status)}">
+                    ${device.status}
+                </span>
+            </td>
+        `;
+
+        tbody.appendChild(tr);
+    });
 }
+
 
 // TODO [요구사항 #2-C]: 가전 클릭 시 상세 사용 현황을 조회하세요.
-//
 async function selectDevice(deviceId) {
-    // 여기에 구현하세요
     // 1. selectedDeviceId 업데이트
-    // 2. renderDevices() 호출 (선택 상태 반영)
-    // 3. GET /api/devices/{deviceId}/usage 호출
-    // 4. usage-empty 숨기기, usage-detail 표시
-    // 5. usage-info에 상세 정보 렌더링:
-    //    - Device ID, Device Name
-    //    - Power Status (badge 스타일 적용)
-    //    - Last Used, Total Usage Hours, Weekly Usage Count
-    //    - Health Status (badge 스타일 적용)
-    //    - Remark
-    // 6. renderUsageChart(data.weeklyUsageTrend) 호출
+    selectedDeviceId = deviceId;
+
+    // 2. 선택 상태 반영
+    renderDevices();
+
+    try {
+        // 3. GET /api/devices/{deviceId}/usage 호출
+        const response =
+            await fetch(`/api/devices/${deviceId}/usage`);
+
+        if (!response.ok) {
+            throw new Error(`HTTP 에러! 상태 코드: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        const usageEmpty = document.getElementById("usage-empty");
+        const usageDetail = document.getElementById("usage-detail");
+        const usageInfo = document.getElementById("usage-info");
+
+        // 4. usage-empty 숨기기, usage-detail 표시
+        usageEmpty.style.display = "none";
+        usageDetail.style.display = "";
+
+        // 5. 상세 정보 렌더링
+        usageInfo.innerHTML = `
+            <div>
+                <strong>Device ID:</strong>
+                ${data.deviceId}
+            </div>
+
+            <div>
+                <strong>Device Name:</strong>
+                ${data.deviceName}
+            </div>
+
+            <div>
+                <strong>Power Status:</strong>
+                <span class="${badgeClass(data.powerStatus)}">
+                    ${data.powerStatus}
+                </span>
+            </div>
+
+            <div>
+                <strong>Last Used:</strong>
+                ${data.lastUsedAt}
+            </div>
+
+            <div>
+                <strong>Total Usage Hours:</strong>
+                ${data.totalUsageHours}
+            </div>
+
+            <div>
+                <strong>Weekly Usage Count:</strong>
+                ${data.weeklyUsageCount}
+            </div>
+
+            <div>
+                <strong>Health Status:</strong>
+                <span class="${badgeClass(data.healthStatus)}">
+                    ${data.healthStatus}
+                </span>
+            </div>
+
+            <div>
+                <strong>Remark:</strong>
+                ${data.remark || ""}
+            </div>
+        `;
+
+        // 6. 주간 사용량 차트
+        renderUsageChart(data.weeklyUsageTrend);
+
+    } catch (error) {
+        console.error("사용 현황을 불러오지 못했습니다:", error);
+    }
 }
 
+
 // TODO [요구사항 #2-D]: Chart.js를 사용하여 주간 사용량 Bar Chart를 그리세요.
-//
 function renderUsageChart(trend) {
     const ctx = document.getElementById("usageChart");
-    // 여기에 구현하세요
 
     // 1. 기존 차트 있으면 destroy()
-    // 2. new Chart() 생성
-    //    - type: "bar"
-    //    - labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-    //    - data: trend 배열
-    //    - options: responsive, beginAtZero
+    if (usageChart) {
+        usageChart.destroy();
+    }
+
+    // 2. 새 차트 생성
+    usageChart = new Chart(ctx, {
+        type: "bar",
+
+        data: {
+            labels: [
+                "Mon",
+                "Tue",
+                "Wed",
+                "Thu",
+                "Fri",
+                "Sat",
+                "Sun"
+            ],
+
+            datasets: [
+                {
+                    label: "Usage",
+                    data: trend
+                }
+            ]
+        },
+
+        options: {
+            responsive: true,
+
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
 }
 
 
@@ -136,16 +396,28 @@ function renderUsageChart(trend) {
 // 이벤트 바인딩 + 초기화
 // =============================================================================
 function bindEvents() {
-    // [요구사항 #1] 완료 후 아래 주석을 해제하세요
-    // document.getElementById("subscriber-search").addEventListener("input", renderSubscribers);
-    // document.getElementById("subscriber-status-filter").addEventListener("change", renderSubscribers);
+    // [요구사항 #1]
+    document
+        .getElementById("subscriber-search")
+        .addEventListener("input", renderSubscribers);
 
-    // [요구사항 #2] 완료 후 아래 주석을 해제하세요
-    // document.getElementById("device-search").addEventListener("input", renderDevices);
-    // document.getElementById("device-status-filter").addEventListener("change", renderDevices);
+    document
+        .getElementById("subscriber-status-filter")
+        .addEventListener("change", renderSubscribers);
+
+    // [요구사항 #2]
+    document
+        .getElementById("device-search")
+        .addEventListener("input", renderDevices);
+
+    document
+        .getElementById("device-status-filter")
+        .addEventListener("change", renderDevices);
 }
 
+
+// 이벤트 바인딩
 bindEvents();
 
-// [요구사항 #1] 완료 후 아래 주석을 해제하세요
-// fetchSubscribers();
+// 최초 구독자 목록 조회
+fetchSubscribers();
